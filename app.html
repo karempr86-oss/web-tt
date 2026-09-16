@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecureCrypt App</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>body{font-family:'Cairo',sans-serif}</style>
+</head>
+<body class="bg-[#090514] text-white min-h-screen flex flex-col">
+
+<header class="bg-[#0c0721] border-b border-purple-900/40 h-16 flex items-center px-4 sticky top-0 z-50">
+<div class="w-full flex justify-between items-center">
+<a href="app.html" class="flex gap-2 items-center font-black"><i class="fa-solid fa-shield-halved text-purple-400"></i> SecureCrypt</a>
+<div class="flex gap-2 items-center text-xs"><span id="userName" class="text-purple-300 max-w-[120px] truncate"></span><button onclick="logout()" class="bg-red-600 px-3 py-1.5 rounded-full">خروج</button></div>
+</div>
+</header>
+
+<main class="max-w-7xl mx-auto p-4 grid lg:grid-cols-2 gap-4 w-full flex-1">
+
+<div class="bg-[#130c2e] border border-purple-900/40 rounded-2xl overflow-hidden">
+<div class="bg-purple-600 p-3 font-bold text-sm"><i class="fa-solid fa-lock"></i> تشفير</div>
+<div class="p-4 space-y-3">
+<div class="flex bg-[#0c0721] p-1 rounded-xl text-xs font-bold"><button id="encT1" onclick="switchEncTab('text')" class="flex-1 py-2 rounded-lg bg-purple-600">نص</button><button id="encT2" onclick="switchEncTab('file')" class="flex-1 py-2">ملف</button></div>
+<div id="encTextBox"><textarea id="encInputText" rows="3" placeholder="اكتب النص هنا..." class="w-full bg-[#090514] border border-purple-900/50 rounded-xl p-3 text-sm text-white outline-none"></textarea></div>
+<div id="encFileBox" class="hidden"><input type="file" id="encFileInput" class="w-full text-xs"><p id="encFileLabel" class="text-[11px] text-gray-400 mt-1"></p></div>
+<input id="encKey" placeholder="مفتاح التشفير" class="w-full bg-[#090514] border border-purple-900/50 rounded-xl p-3 text-sm text-white outline-none">
+<select id="encAlgo" class="w-full bg-[#090514] border border-purple-900/50 rounded-xl p-3 text-sm text-white"><option value="AES">AES-256</option><option value="Base64">Base64</option><option value="Caesar">Caesar</option></select>
+<button onclick="processEncryption()" class="w-full py-3 bg-purple-600 rounded-xl font-bold text-sm">تشفير الآن</button>
+<textarea id="encOutput" rows="3" readonly placeholder="الناتج سيظهر هنا..." class="w-full bg-black/30 border border-purple-900/30 rounded-xl p-3 text-xs font-mono text-purple-300"></textarea>
+<button onclick="navigator.clipboard.writeText(document.getElementById('encOutput').value);showToast('تم النسخ')" class="text-xs text-purple-400">📋 نسخ الناتج</button>
+</div>
+</div>
+
+<div class="bg-[#130c2e] border border-purple-900/40 rounded-2xl overflow-hidden">
+<div class="bg-purple-600 p-3 font-bold text-sm"><i class="fa-solid fa-lock-open"></i> فك التشفير</div>
+<div class="p-4 space-y-3">
+<div class="flex bg-[#0c0721] p-1 rounded-xl text-xs font-bold"><button id="decT1" onclick="switchDecTab('text')" class="flex-1 py-2 rounded-lg bg-purple-600">نص</button><button id="decT2" onclick="switchDecTab('file')" class="flex-1 py-2">ملف</button></div>
+<div id="decTextBox"><textarea id="decInputText" rows="3" placeholder="الصق المشفر هنا..." class="w-full bg-[#090514] border border-purple-900/50 rounded-xl p-3 text-sm text-white outline-none"></textarea></div>
+<div id="decFileBox" class="hidden"><input type="file" id="decFileInput" class="w-full text-xs"><p id="decFileLabel" class="text-[11px] text-gray-400 mt-1"></p></div>
+<input id="decKey" placeholder="مفتاح فك التشفير" class="w-full bg-[#090514] border border-purple-900/50 rounded-xl p-3 text-sm text-white outline-none">
+<select id="decAlgo" class="w-full bg-[#090514] border border-purple-900/50 rounded-xl p-3 text-sm text-white"><option value="AES">AES-256</option><option value="Base64">Base64</option><option value="Caesar">Caesar</option></select>
+<button onclick="processDecryption()" class="w-full py-3 bg-purple-600 rounded-xl font-bold text-sm">فك التشفير</button>
+<textarea id="decOutput" rows="3" readonly placeholder="الناتج..." class="w-full bg-black/30 border border-purple-900/30 rounded-xl p-3 text-xs font-mono text-green-300"></textarea>
+<button onclick="navigator.clipboard.writeText(document.getElementById('decOutput').value);showToast('تم النسخ')" class="text-xs text-purple-400">📋 نسخ الناتج</button>
+</div>
+</div>
+
+</main>
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-[#130c2e] border border-purple-500/50 px-5 py-2 rounded-xl hidden z-50 text-xs"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+const firebaseConfig = { apiKey: "AIzaSyBn56UKJbcNtb0mal-ki4H1G-MLvMmk-dw", authDomain: "web-tsh.firebaseapp.com", projectId: "web-tsh", storageBucket: "web-tsh.firebasestorage.app", messagingSenderId: "902436935435", appId: "1:902436935435:web:322c5d7584cbae1190340e", measurementId: "G-KDE2Y0131P" };
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+onAuthStateChanged(auth, (user)=>{ if(!user){ location.href='index.html'; } else { document.getElementById('userName').innerText=user.displayName||user.email; } });
+window.logout=()=>signOut(auth).then(()=>location.href='index.html');
+</script>
+
+<script>
+let encMode='text', decMode='text', selEnc=null, selDec=null;
+function switchEncTab(m){encMode=m; document.getElementById('encTextBox').classList.toggle('hidden',m!='text'); document.getElementById('encFileBox').classList.toggle('hidden',m!='file'); document.getElementById('encT1').className=m=='text'?'flex-1 py-2 rounded-lg bg-purple-600':'flex-1 py-2 rounded-lg'; document.getElementById('encT2').className=m=='file'?'flex-1 py-2 rounded-lg bg-purple-600':'flex-1 py-2 rounded-lg';}
+function switchDecTab(m){decMode=m; document.getElementById('decTextBox').classList.toggle('hidden',m!='text'); document.getElementById('decFileBox').classList.toggle('hidden',m!='file'); document.getElementById('decT1').className=m=='text'?'flex-1 py-2 rounded-lg bg-purple-600':'flex-1 py-2 rounded-lg'; document.getElementById('decT2').className=m=='file'?'flex-1 py-2 rounded-lg bg-purple-600':'flex-1 py-2 rounded-lg';}
+document.getElementById('encFileInput').addEventListener('change',e=>{selEnc=e.target.files[0]; document.getElementById('encFileLabel').innerText=selEnc?selEnc.name:'';});
+document.getElementById('decFileInput').addEventListener('change',e=>{selDec=e.target.files[0]; document.getElementById('decFileLabel').innerText=selDec?selDec.name:'';});
+function showToast(m){const t=document.getElementById('toast');t.innerText=m;t.classList.remove('hidden');setTimeout(()=>t.classList.add('hidden'),2500);}
+function caesar(s,a){if(a<0)return caesar(s,a+26);let o='';for(let i=0;i<s.length;i++){let code=s.charCodeAt(i);if(code>=65&&code<=90)o+=String.fromCharCode(((code-65+a)%26)+65);else if(code>=97&&code<=122)o+=String.fromCharCode(((code-97+a)%26)+97);else o+=s[i];}return o;}
+
+function processEncryption(){
+  const algo=document.getElementById('encAlgo').value;
+  const key=document.getElementById('encKey').value;
+  const out=document.getElementById('encOutput');
+  if(encMode==='text'){
+    const txt=document.getElementById('encInputText').value;
+    if(!txt) return showToast('اكتب النص الاول');
+    try{
+      let r='';
+      if(algo==='AES'){ if(!key) return showToast('ادخل المفتاح'); r=CryptoJS.AES.encrypt(txt,key).toString(); }
+      else if(algo==='Base64'){ r=CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(txt)); }
+      else { r=caesar(txt, parseInt(key)||3); }
+      out.value=r; showToast('تم التشفير بنجاح');
+    }catch(e){ showToast('خطأ في التشفير'); }
+  } else {
+    if(!selEnc) return showToast('اختار ملف');
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      let data=e.target.result;
+      let encData=data;
+      if(algo==='AES'){ if(!key) return showToast('ادخل المفتاح'); encData=CryptoJS.AES.encrypt(data,key).toString(); }
+      out.value=encData.substring(0,500)+'...';
+      const blob=new Blob([encData],{type:'text/plain'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='encrypted_'+selEnc.name+'.enc'; a.click();
+      showToast('تم تشفير الملف وتحميله');
+    };
+    reader.readAsDataURL(selEnc);
+  }
+}
+
+function processDecryption(){
+  const algo=document.getElementById('decAlgo').value;
+  const key=document.getElementById('decKey').value;
+  const out=document.getElementById('decOutput');
+  if(decMode==='text'){
+    const txt=document.getElementById('decInputText').value;
+    if(!txt) return showToast('ادخل النص المشفر');
+    try{
+      let r='';
+      if(algo==='AES'){ const b=CryptoJS.AES.decrypt(txt,key); r=b.toString(CryptoJS.enc.Utf8); if(!r) throw 'err'; }
+      else if(algo==='Base64'){ r=CryptoJS.enc.Base64.parse(txt).toString(CryptoJS.enc.Utf8); }
+      else { r=caesar(txt, -(parseInt(key)||3)); }
+      out.value=r; showToast('تم فك التشفير');
+    }catch(e){ showToast('المفتاح غلط او النص تالف'); }
+  } else {
+    if(!selDec) return showToast('اختار الملف المشفر');
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      try{
+        let content=e.target.result;
+        let dec=content;
+        if(algo==='AES'){ const b=CryptoJS.AES.decrypt(content,key); dec=b.toString(CryptoJS.enc.Utf8); }
+        out.value=dec.substring(0,500)+'...';
+        const blob=new Blob([dec],{type:'application/octet-stream'});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download=selDec.name.replace('encrypted_','').replace('.enc',''); a.click();
+        showToast('تم فك التشفير');
+      }catch(err){ showToast('فشل فك التشفير'); }
+    };
+    reader.readAsText(selDec);
+  }
+}
+</script>
+</body>
+</html>
